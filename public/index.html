@@ -1,0 +1,2000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick File Send — Resumable Multi-Gigabyte File Transfer</title>
+  <meta name="description" content="High-speed peer-to-peer file transfer over WebRTC & Flow-Controlled Cloud Relay. Auto-resumes on network drops, works across all mobile & WiFi networks.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07090e;
+      --card-bg: rgba(18, 24, 38, 0.88);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-hover: rgba(255, 255, 255, 0.12);
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --accent-glow: rgba(99, 102, 241, 0.35);
+      --cyan: #06b6d4;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --surface: rgba(255, 255, 255, 0.04);
+      --surface-border: rgba(255, 255, 255, 0.06);
+      --radius-lg: 24px;
+      --radius-md: 16px;
+      --radius-sm: 10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      overscroll-behavior-y: contain;
+      overscroll-behavior: contain;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    .ambient-glow-1 {
+      position: fixed;
+      top: -10vw; left: -10vw;
+      width: 45vw; height: 45vw;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+      filter: blur(80px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .ambient-glow-2 {
+      position: fixed;
+      bottom: -10vw; right: -10vw;
+      width: 45vw; height: 45vw;
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, transparent 70%);
+      filter: blur(80px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 640px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding: 0 8px;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 1.4rem;
+      letter-spacing: -0.02em;
+      color: #fff;
+      text-decoration: none;
+      transition: transform 0.2s ease;
+    }
+
+    .brand-logo:hover {
+      transform: translateY(-1px);
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-icon {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      color: var(--text-muted);
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .btn-icon:hover {
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .card-header {
+      margin-bottom: 24px;
+    }
+
+    .badge-p2p {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 99px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: #34d399;
+      font-size: 0.78rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 10px #34d399;
+      animation: pulse 2s infinite;
+    }
+
+    .pulse-dot.amber {
+      background: #f59e0b;
+      box-shadow: 0 0 10px #f59e0b;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.2); }
+    }
+
+    .card-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.65rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+      background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .card-subtitle {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .dropzone {
+      position: relative;
+      border: 2px dashed rgba(99, 102, 241, 0.35);
+      background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, rgba(6, 182, 212, 0.02) 100%);
+      border-radius: var(--radius-md);
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+    }
+
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.08);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(99, 102, 241, 0.15);
+    }
+
+    .dropzone.dragover { border-style: solid; transform: scale(1.02); }
+    .dropzone input[type="file"] { display: none; }
+
+    .drop-icon-wrapper {
+      width: 68px;
+      height: 68px;
+      border-radius: 18px;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #818cf8;
+      transition: transform 0.2s ease;
+    }
+
+    .dropzone:hover .drop-icon-wrapper { transform: scale(1.08) rotate(-3deg); }
+    .drop-heading { font-size: 1.1rem; font-weight: 700; color: #fff; }
+    .drop-subtext { font-size: 0.86rem; color: var(--text-muted); }
+
+    .drop-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 10px 20px;
+      border-radius: var(--radius-sm);
+      margin-top: 6px;
+      box-shadow: 0 4px 14px var(--accent-glow);
+      pointer-events: none;
+    }
+
+    .paste-hint {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .kbd {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 0.72rem;
+      font-family: monospace;
+      color: #cbd5e1;
+    }
+
+    .file-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      margin-bottom: 24px;
+    }
+
+    .file-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      flex-shrink: 0;
+    }
+
+    .file-info { flex: 1; min-width: 0; }
+    .file-name {
+      font-weight: 600;
+      font-size: 0.98rem;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .file-meta { font-size: 0.82rem; color: var(--text-muted); margin-top: 3px; }
+
+    .share-area {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .share-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .link-box { display: flex; gap: 8px; }
+    .link-input {
+      flex: 1;
+      min-width: 0;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      color: #fff;
+      font-size: 0.88rem;
+      font-family: monospace;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .link-input:focus { border-color: var(--accent); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+      font-family: inherit;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+    .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--surface-border);
+      color: var(--text-muted);
+    }
+    .btn-outline:hover { background: var(--surface); color: #fff; }
+
+    .btn-emerald {
+      background: var(--emerald);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+    }
+    .btn-emerald:hover { background: #059669; transform: translateY(-1px); }
+
+    .btn-danger {
+      background: #f43f5e;
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(244, 63, 94, 0.4);
+    }
+    .btn-danger:hover {
+      background: #e11d48;
+      transform: translateY(-1px);
+    }
+
+    .qr-toggle-btn {
+      font-size: 0.84rem;
+      color: var(--cyan);
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+      border-radius: 8px;
+      padding: 6px 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .qr-modal {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin-top: 16px;
+      text-align: center;
+    }
+
+    .qr-canvas-container {
+      background: #ffffff;
+      padding: 14px;
+      border-radius: 12px;
+      display: inline-block;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+
+    .qr-modal canvas { display: block; }
+    .qr-caption { font-size: 0.82rem; color: var(--text-muted); margin-top: 10px; }
+
+    .progress-section { margin-top: 20px; }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 0.88rem;
+      color: #fff;
+    }
+
+    .status-spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .status-spinner.amber {
+      border-top-color: var(--amber);
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .pct-label {
+      font-family: 'Outfit', monospace;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .progress-track {
+      height: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 99px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #6366f1, #06b6d4, #10b981);
+      border-radius: 99px;
+      transition: width 0.15s ease-out;
+      position: relative;
+    }
+
+    .progress-fill.paused {
+      background: linear-gradient(90deg, #f59e0b, #fbbf24);
+    }
+
+    .progress-fill::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+      animation: shimmer 1.5s infinite;
+    }
+
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    .metrics-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .tags-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .mode-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.75rem;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .wake-lock-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .shield-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+      color: #fbbf24;
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .receiver-radar {
+      position: relative;
+      width: 100px;
+      height: 100px;
+      margin: 20px auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .radar-circle {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 1px solid var(--accent);
+      opacity: 0;
+      animation: radarRipple 2s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+    }
+
+    .radar-circle:nth-child(2) { animation-delay: 0.6s; }
+    .radar-circle:nth-child(3) { animation-delay: 1.2s; }
+
+    @keyframes radarRipple {
+      0% { transform: scale(0.3); opacity: 0.8; }
+      100% { transform: scale(1.3); opacity: 0; }
+    }
+
+    .radar-icon {
+      position: relative;
+      z-index: 2;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #6366f1, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .preview-container {
+      margin-top: 18px;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      border: 1px solid var(--surface-border);
+      background: #000;
+      display: none;
+      max-height: 280px;
+      text-align: center;
+    }
+
+    .preview-container img { max-width: 100%; max-height: 280px; object-fit: contain; margin: 0 auto; display: block; }
+    .preview-container audio, .preview-container video { width: 100%; display: block; }
+
+    .toast {
+      position: fixed;
+      bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 99px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      backdrop-filter: blur(12px);
+      z-index: 100;
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      text-align: center;
+    }
+
+    .feature-icon { font-size: 1.2rem; margin-bottom: 6px; }
+    .feature-title { font-size: 0.78rem; font-weight: 700; color: #fff; }
+    .feature-desc { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+
+    .alert-box {
+      margin-top: 16px;
+      padding: 14px 18px;
+      border-radius: var(--radius-sm);
+      background: rgba(244, 63, 94, 0.1);
+      border: 1px solid rgba(244, 63, 94, 0.25);
+      color: #fb7185;
+      font-size: 0.88rem;
+      display: none;
+    }
+
+    /* In-App Confirmation Modal */
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .modal-backdrop.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-box {
+      background: #0f172a;
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(244, 63, 94, 0.25);
+      border-radius: var(--radius-lg);
+      padding: 28px 24px;
+      max-width: 440px;
+      width: 100%;
+      text-align: center;
+      transform: scale(0.92);
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .modal-backdrop.show .modal-box {
+      transform: scale(1);
+    }
+
+    .modal-icon {
+      font-size: 2.8rem;
+      margin-bottom: 12px;
+      animation: pulse 1.5s infinite;
+    }
+
+    .modal-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+
+    .modal-desc {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin-bottom: 24px;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 600px) {
+      .card { padding: 22px 18px; }
+      .features-grid { grid-template-columns: 1fr; }
+      .link-box { flex-direction: column; }
+      .modal-actions { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ambient-glow-1"></div>
+  <div class="ambient-glow-2"></div>
+
+  <div class="app-container">
+    
+    <header class="top-bar">
+      <a href="/" class="brand-logo" id="logoLink">
+        <div class="logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        </div>
+        Quick File Send
+      </a>
+
+      <div class="top-actions">
+        <button class="btn-icon" id="soundBtn" title="Toggle sound effects">
+          <svg id="soundOnIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+          <svg id="soundOffIcon" class="hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="card">
+
+      <!-- ================= SENDER: HOME VIEW ================= -->
+      <section id="view-home">
+        <div class="card-header">
+          <div class="badge-p2p">
+            <span class="pulse-dot"></span>
+            Background-Safe Multi-Gigabyte Stream
+          </div>
+          <h1 class="card-title">Send files anywhere</h1>
+          <p class="card-subtitle">Continuous streaming with background tab protection and auto-resume. Never loses progress on minimized windows or mobile drops.</p>
+        </div>
+
+        <label class="dropzone" id="dropzone">
+          <input type="file" id="filePicker">
+          <div class="drop-icon-wrapper">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          </div>
+          <div>
+            <div class="drop-heading">Choose a file or drag & drop here</div>
+            <div class="drop-subtext">Supports large 2GB+ movies, archives, photos & videos</div>
+          </div>
+          <div class="drop-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+            Browse File
+          </div>
+          <div class="paste-hint">
+            Tip: You can also paste directly with <span class="kbd">Ctrl + V</span>
+          </div>
+        </label>
+      </section>
+
+      <!-- ================= SENDER: ACTIVE VIEW ================= -->
+      <section id="view-sender" class="hidden">
+        <div class="card-header">
+          <div class="badge-p2p">
+            <span class="pulse-dot" id="sDot"></span>
+            <span id="sRoomBadge">Private Transfer Room</span>
+          </div>
+          <h1 class="card-title">Ready to transfer</h1>
+          <p class="card-subtitle">Share this secure link or scan the QR code to begin the stream.</p>
+        </div>
+
+        <div class="file-card">
+          <div class="file-icon" id="sFileIcon">📄</div>
+          <div class="file-info">
+            <div class="file-name" id="sFileName">filename.ext</div>
+            <div class="file-meta" id="sFileSize">0 MB</div>
+          </div>
+        </div>
+
+        <div class="share-area">
+          <div class="share-label">
+            <span>Share transfer link with recipient</span>
+            <button class="qr-toggle-btn" id="qrToggleBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+              <span id="qrToggleText">Show QR Code</span>
+            </button>
+          </div>
+          <div class="link-box">
+            <input type="text" id="shareLinkInput" class="link-input" readonly>
+            <button class="btn btn-primary" id="copyLinkBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              <span id="copyBtnText">Copy</span>
+            </button>
+          </div>
+
+          <div class="qr-modal" id="qrModal">
+            <div class="qr-canvas-container">
+              <canvas id="qrCanvas"></canvas>
+            </div>
+            <div class="qr-caption">Scan with mobile camera to receive on your phone</div>
+          </div>
+        </div>
+
+        <div class="progress-section">
+          <div class="status-row">
+            <div class="status-badge">
+              <div class="status-spinner" id="sSpinner"></div>
+              <span id="sStatusText">Waiting for recipient to open link or scan QR…</span>
+            </div>
+            <div class="pct-label" id="sPctLabel">0%</div>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="sProgressFill"></div>
+          </div>
+          <div class="metrics-row">
+            <span id="sSpeedLabel">Recipient not connected yet</span>
+            <span id="sEtaLabel"></span>
+          </div>
+          <div class="tags-row">
+            <div id="sModeTag" class="mode-tag hidden">
+              <span id="sModeText">🌐 Universal Cross-Network Relay</span>
+            </div>
+            <div id="sWakeLockNotice" class="wake-lock-tag hidden">
+              <span>🔋 Background & Screen Active</span>
+            </div>
+            <div class="shield-tag">
+              <span>🛡️ Refresh Protected</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
+          <button class="btn btn-outline" id="sResetBtn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+            Send Another File
+          </button>
+        </div>
+      </section>
+
+      <!-- ================= RECEIVER VIEW ================= -->
+      <section id="view-receiver" class="hidden">
+        <div class="card-header">
+          <div class="badge-p2p">
+            <span class="pulse-dot" id="rDot"></span>
+            <span id="rRoomBadge">Universal Receiver</span>
+          </div>
+          <h1 class="card-title">Incoming File Transfer</h1>
+          <p class="card-subtitle">Receiving stream from sender across any network or cellular connection.</p>
+        </div>
+
+        <div class="receiver-radar" id="rRadar">
+          <div class="radar-circle"></div>
+          <div class="radar-circle"></div>
+          <div class="radar-circle"></div>
+          <div class="radar-icon">📡</div>
+        </div>
+
+        <div class="file-card" id="rFileCard">
+          <div class="file-icon" id="rFileIcon">📦</div>
+          <div class="file-info">
+            <div class="file-name" id="rFileName">Connecting to sender…</div>
+            <div class="file-meta" id="rFileSize">Waiting for connection handshake</div>
+          </div>
+        </div>
+
+        <div class="progress-section" id="rProgressSection">
+          <div class="status-row">
+            <div class="status-badge">
+              <div class="status-spinner" id="rSpinner"></div>
+              <span id="rStatusText">Connecting to sender…</span>
+            </div>
+            <div class="pct-label" id="rPctLabel">0%</div>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="rProgressFill"></div>
+          </div>
+          <div class="metrics-row">
+            <span id="rSpeedLabel">Establishing tunnel…</span>
+            <span id="rEtaLabel"></span>
+          </div>
+          <div class="tags-row">
+            <div id="rModeTag" class="mode-tag hidden">
+              <span id="rModeText">🌐 Universal Cross-Network Relay</span>
+            </div>
+            <div id="rWakeLockNotice" class="wake-lock-tag hidden">
+              <span>🔋 Background & Screen Active</span>
+            </div>
+            <div class="shield-tag">
+              <span>🛡️ Refresh Protected</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="preview-container" id="rPreviewBox"></div>
+
+        <div style="margin-top: 24px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+          <button class="btn btn-emerald hidden" id="rDownloadBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span id="downloadBtnText">Download File</span>
+          </button>
+          <a href="/" class="btn btn-secondary" id="rSendBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Send a file
+          </a>
+        </div>
+      </section>
+
+      <div id="errorAlert" class="alert-box"></div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🛡️</div>
+          <div class="feature-title">Refresh Protected</div>
+          <div class="feature-desc">Prevents accidental page reloads with confirmation prompt</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <div class="feature-title">Background Active</div>
+          <div class="feature-desc">Streams continuously even when minimized or switched to other tabs</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔄</div>
+          <div class="feature-title">Instant Auto-Resume</div>
+          <div class="feature-desc">Seamlessly resumes from exact byte on connection drops</div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- In-App Confirmation Modal Dialog -->
+  <div id="refreshModalBackdrop" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-icon">⚠️</div>
+      <h3 class="modal-title">ফাইল ট্রান্সফার সেশন চলমান রয়েছে!</h3>
+      <p class="modal-desc">আপনি কি আসলেই রিফ্রেশ করতে চান? পেজ রিফ্রেশ করলে বর্তমান ট্রান্সফার এবং নেটওয়ার্ক সংযোগ বিচ্ছিন্ন হয়ে যাবে।</p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="modalStayBtn" style="flex: 1;">না, ট্রান্সফার চালু রাখুন</button>
+        <button class="btn btn-danger" id="modalLeaveBtn" style="flex: 1;">হ্যাঁ, রিফ্রেশ করুন</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><path d="M20 6L9 17l-5-5"></path></svg>
+    <span id="toastMsg">Notification</span>
+  </div>
+
+  <script>
+    // --- 1. ACCIDENTAL REFRESH & NAVIGATION PROTECTION ---
+    let transferInProgress = false;
+    let transferCompleted = false;
+
+    function handleBeforeUnload(e) {
+      if (transferInProgress && !transferCompleted) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload, { capture: true });
+    document.addEventListener('beforeunload', handleBeforeUnload, { capture: true });
+    window.onbeforeunload = handleBeforeUnload;
+
+    function activateTransferProtection() {
+      transferInProgress = true;
+      transferCompleted = false;
+      window.onbeforeunload = handleBeforeUnload;
+    }
+
+    let pendingActionCallback = null;
+    const modalBackdrop = document.getElementById('refreshModalBackdrop');
+    const modalStayBtn = document.getElementById('modalStayBtn');
+    const modalLeaveBtn = document.getElementById('modalLeaveBtn');
+
+    function showConfirmationDialog(onConfirm) {
+      pendingActionCallback = onConfirm;
+      if (modalBackdrop) {
+        modalBackdrop.classList.add('show');
+      } else {
+        const ok = window.confirm('⚠️ সতর্কতা: ফাইল ট্রান্সফার সেশন চলমান রয়েছে!\n\nআপনি কি আসলেই রিফ্রেশ করতে চান?');
+        if (ok && onConfirm) onConfirm();
+      }
+    }
+
+    function hideConfirmationDialog() {
+      if (modalBackdrop) modalBackdrop.classList.remove('show');
+      pendingActionCallback = null;
+    }
+
+    if (modalStayBtn) {
+      modalStayBtn.onclick = (e) => {
+        e.preventDefault();
+        hideConfirmationDialog();
+      };
+    }
+
+    if (modalLeaveBtn) {
+      modalLeaveBtn.onclick = (e) => {
+        e.preventDefault();
+        const cb = pendingActionCallback;
+        hideConfirmationDialog();
+        if (cb) cb();
+      };
+    }
+
+    function handleKeydownTraps(e) {
+      const key = e.key ? e.key.toLowerCase() : '';
+      const isF5 = key === 'f5' || e.keyCode === 116 || e.code === 'F5';
+      const isR = (e.ctrlKey || e.metaKey) && (key === 'r' || e.keyCode === 82 || e.code === 'KeyR');
+
+      if (transferInProgress && !transferCompleted && (isF5 || isR)) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
+        showConfirmationDialog(() => {
+          transferInProgress = false;
+          window.onbeforeunload = null;
+          window.location.reload();
+        });
+        return false;
+      }
+    }
+
+    window.addEventListener('keydown', handleKeydownTraps, { capture: true, passive: false });
+    document.addEventListener('keydown', handleKeydownTraps, { capture: true, passive: false });
+
+    const logoLink = document.getElementById('logoLink');
+    if (logoLink) {
+      logoLink.addEventListener('click', (e) => {
+        if (transferInProgress && !transferCompleted) {
+          e.preventDefault();
+          showConfirmationDialog(() => {
+            transferInProgress = false;
+            window.onbeforeunload = null;
+            window.location.href = '/';
+          });
+        }
+      });
+    }
+
+    const rSendBtn = document.getElementById('rSendBtn');
+    if (rSendBtn) {
+      rSendBtn.addEventListener('click', (e) => {
+        if (transferInProgress && !transferCompleted) {
+          e.preventDefault();
+          showConfirmationDialog(() => {
+            transferInProgress = false;
+            window.onbeforeunload = null;
+            window.location.href = '/';
+          });
+        }
+      });
+    }
+
+    // --- 2. ADVANCED BACKGROUND TAB & WINDOW MINIMIZATION CONTINUITY ---
+    // Inline Web Worker runs completely unthrottled in background threads
+    const workerCode = `
+      let pacingTimer = null;
+      let heartbeatTimer = null;
+
+      self.onmessage = function(e) {
+        if (e.data === 'start') {
+          if (!pacingTimer) {
+            pacingTimer = setInterval(() => self.postMessage({ type: 'tick' }), 8);
+          }
+          if (!heartbeatTimer) {
+            heartbeatTimer = setInterval(() => self.postMessage({ type: 'heartbeat' }), 2500);
+          }
+        } else if (e.data === 'stop') {
+          if (pacingTimer) { clearInterval(pacingTimer); pacingTimer = null; }
+          if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+        }
+      };
+    `;
+    const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
+    const bgWorker = new Worker(URL.createObjectURL(workerBlob));
+
+    // Continuous looping Web Audio Engine (prevents OS/Chrome tab freeze and throttling)
+    let bgAudioCtx = null;
+    let bgAudioSource = null;
+
+    function enableBackgroundKeepAlive() {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+
+        if (!bgAudioCtx) {
+          bgAudioCtx = new AudioContext();
+        }
+
+        if (bgAudioCtx.state === 'suspended') {
+          bgAudioCtx.resume();
+        }
+
+        if (!bgAudioSource && bgAudioCtx) {
+          // Create 1-second active buffer of microscopic inaudible carrier
+          const bufferSize = bgAudioCtx.sampleRate * 1;
+          const buffer = bgAudioCtx.createBuffer(1, bufferSize, bgAudioCtx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * 0.00002;
+          }
+
+          bgAudioSource = bgAudioCtx.createBufferSource();
+          bgAudioSource.buffer = buffer;
+          bgAudioSource.loop = true;
+
+          const gainNode = bgAudioCtx.createGain();
+          gainNode.gain.value = 0.0001;
+
+          bgAudioSource.connect(gainNode);
+          gainNode.connect(bgAudioCtx.destination);
+          bgAudioSource.start();
+        }
+      } catch (e) {
+        console.log('Audio keepalive notice:', e);
+      }
+    }
+
+    function handleUserInteraction() {
+      enableBackgroundKeepAlive();
+      if (transferInProgress) {
+        window.onbeforeunload = handleBeforeUnload;
+      }
+    }
+    window.addEventListener('click', handleUserInteraction, { capture: true });
+    window.addEventListener('touchstart', handleUserInteraction, { capture: true });
+    window.addEventListener('pointerdown', handleUserInteraction, { capture: true });
+
+    // Handle background worker notifications
+    let pacingResolvers = [];
+    bgWorker.onmessage = (e) => {
+      if (e.data && e.data.type === 'tick') {
+        const resolvers = pacingResolvers;
+        pacingResolvers = [];
+        for (let i = 0; i < resolvers.length; i++) {
+          resolvers[i]();
+        }
+      } else if (e.data && e.data.type === 'heartbeat') {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          try { ws.send(JSON.stringify({ type: 'ping' })); } catch (err) {}
+        }
+      }
+    };
+
+    function waitPacingTick() {
+      return new Promise(resolve => {
+        pacingResolvers.push(resolve);
+        setTimeout(resolve, 15);
+      });
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      enableBackgroundKeepAlive();
+      if (document.visibilityState === 'hidden') {
+        console.log('Tab minimized: Background worker & keepalive running.');
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          try { ws.send(JSON.stringify({ type: 'ping' })); } catch(e) {}
+        }
+      } else {
+        console.log('Tab restored to visible.');
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          try { ws.send(JSON.stringify({ type: 'ping' })); } catch(e) {}
+        }
+        if (transferInProgress && !transferCompleted) {
+          requestWakeLock();
+        }
+      }
+    });
+
+    window.addEventListener('focus', () => {
+      enableBackgroundKeepAlive();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try { ws.send(JSON.stringify({ type: 'ping' })); } catch(e) {}
+      }
+    });
+
+    // --- QR Generator ---
+    const QR = (function() {
+      function createQRCode(text, canvas, size = 180) {
+        const ctx = canvas.getContext('2d');
+        canvas.width = size; canvas.height = size;
+        const qrImg = new Image();
+        qrImg.crossOrigin = 'anonymous';
+        qrImg.onload = () => {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, size, size);
+          ctx.drawImage(qrImg, 0, 0, size, size);
+        };
+        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}&margin=10`;
+        qrImg.onerror = () => {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, size, size);
+          ctx.fillStyle = '#0f172a';
+          ctx.font = '12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('Scan link via device camera', size/2, size/2 - 10);
+        };
+      }
+      return { render: createQRCode };
+    })();
+
+    // --- Sound Synthesis ---
+    class SoundEngine {
+      constructor() { this.enabled = true; this.ctx = null; }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) this.ctx = new AudioContext();
+        }
+      }
+      playSuccess() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+          const now = this.ctx.currentTime;
+          const osc1 = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+
+          osc1.type = 'sine';
+          osc1.frequency.setValueAtTime(523.25, now);
+          osc1.frequency.exponentialRampToValueAtTime(783.99, now + 0.12);
+          osc1.frequency.exponentialRampToValueAtTime(1046.50, now + 0.25);
+
+          gain.gain.setValueAtTime(0.01, now);
+          gain.gain.linearRampToValueAtTime(0.25, now + 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+          osc1.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.6);
+        } catch (e) {}
+      }
+    }
+    const sound = new SoundEngine();
+
+    let wakeLock = null;
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          $('sWakeLockNotice')?.classList.remove('hidden');
+          $('rWakeLockNotice')?.classList.remove('hidden');
+        }
+      } catch (err) {}
+      enableBackgroundKeepAlive();
+    }
+
+    function releaseWakeLock() {
+      if (wakeLock) {
+        wakeLock.release().catch(() => {});
+        wakeLock = null;
+      }
+    }
+
+    const $ = (id) => document.getElementById(id);
+    
+    // Transmission streaming parameters
+    const CHUNK_SIZE = 32 * 1024;
+    const WINDOW_SIZE = 512 * 1024;
+    const BLOB_SLICE_SIZE = 8 * 1024 * 1024;
+
+    let file = null;
+    let pc = null;
+    let dc = null;
+    let ws = null;
+    let roomId = null;
+    let isSender = false;
+    let isPeerPresent = false;
+
+    // Sender pacing state
+    let isSendingStream = false;
+    let isPausedForDisconnect = false;
+    let senderOffset = 0;
+    let ackedOffset = 0;
+    let senderStartTime = null;
+
+    // Receiver state
+    let blobBatches = [];
+    let currentBatchChunks = [];
+    let currentBatchBytes = 0;
+    let receivedBytes = 0;
+    let fileMeta = null;
+    let rStartTime = null;
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function formatSpeed(bytesPerSec) {
+      if (bytesPerSec <= 0) return '0 KB/s';
+      return `${formatBytes(bytesPerSec)}/s`;
+    }
+
+    function formatEta(seconds) {
+      if (!isFinite(seconds) || seconds <= 0) return '';
+      if (seconds < 60) return `ETA: ~${Math.ceil(seconds)}s`;
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.ceil(seconds % 60);
+      return `ETA: ~${mins}m ${secs}s`;
+    }
+
+    function getFileIcon(filename, mimeType) {
+      const ext = (filename.split('.').pop() || '').toLowerCase();
+      if (/^(png|jpe?g|gif|webp|svg|bmp|ico)$/.test(ext) || (mimeType && mimeType.startsWith('image/'))) return '🖼️';
+      if (/^(mp4|webm|mkv|mov|avi)$/.test(ext) || (mimeType && mimeType.startsWith('video/'))) return '🎬';
+      if (/^(mp3|wav|ogg|m4a|flac)$/.test(ext) || (mimeType && mimeType.startsWith('audio/'))) return '🎵';
+      if (/^(zip|tar|gz|rar|7z|bz2)$/.test(ext)) return '🗜️';
+      if (/^(pdf)$/.test(ext)) return '📕';
+      if (/^(doc|docx|odt|rtf|txt|md)$/.test(ext)) return '📝';
+      if (/^(js|ts|html|css|json|py|java|c|cpp|rs|go|php|sh)$/.test(ext)) return '💻';
+      return '📄';
+    }
+
+    function showToast(msg) {
+      const t = $('toast');
+      $('toastMsg').textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function showError(msg) {
+      const el = $('errorAlert');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function hideError() {
+      $('errorAlert').style.display = 'none';
+    }
+
+    $('soundBtn').onclick = () => {
+      sound.enabled = !sound.enabled;
+      $('soundOnIcon').classList.toggle('hidden', !sound.enabled);
+      $('soundOffIcon').classList.toggle('hidden', sound.enabled);
+      showToast(sound.enabled ? 'Sound effects enabled' : 'Sound effects muted');
+    };
+
+    // --- WebRTC Configuration ---
+    const RTC_CONFIG = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun.cloudflare.com:3478' },
+        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+      ],
+      iceCandidatePoolSize: 10
+    };
+
+    let p2pNegotiationTimer = null;
+
+    async function ensurePeerConnection(isInitiator) {
+      if (pc) return pc;
+      pc = new RTCPeerConnection(RTC_CONFIG);
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) sendSignaling({ type: 'ice', candidate: event.candidate });
+      };
+
+      pc.onconnectionstatechange = () => {
+        console.log('PeerConnection state:', pc.connectionState);
+        if (pc.connectionState === 'connected') {
+          if (p2pNegotiationTimer) clearTimeout(p2pNegotiationTimer);
+          if (isSender) {
+            $('sModeTag').classList.remove('hidden');
+            $('sModeText').textContent = '⚡ Direct P2P Tunnel Active';
+            if (!isSendingStream) {
+              $('sStatusText').textContent = 'Direct P2P connected! Streaming…';
+            }
+          } else {
+            $('rModeTag').classList.remove('hidden');
+            $('rModeText').textContent = '⚡ Direct P2P Tunnel Active';
+            $('rStatusText').textContent = 'Connected directly to sender!';
+          }
+        } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          activateRelayFallback();
+        }
+      };
+
+      if (isInitiator) {
+        dc = pc.createDataChannel('quicksend-transfer', { ordered: true });
+        setupDataChannel(dc);
+      } else {
+        pc.ondatachannel = (event) => {
+          dc = event.channel;
+          setupDataChannel(dc);
+        };
+      }
+
+      return pc;
+    }
+
+    function setupDataChannel(channel) {
+      channel.binaryType = 'arraybuffer';
+      channel.onopen = () => {
+        console.log('DataChannel ready');
+        if (p2pNegotiationTimer) clearTimeout(p2pNegotiationTimer);
+        requestWakeLock();
+        activateTransferProtection();
+        isPeerPresent = true;
+        isPausedForDisconnect = false;
+        if (isSender && file && !isSendingStream) {
+          triggerTransmission('p2p');
+        }
+      };
+      channel.onmessage = (event) => handleIncomingData(event.data);
+      channel.onerror = () => activateRelayFallback();
+    }
+
+    let ackThrottleCount = 0;
+
+    function handleIncomingData(data) {
+      if (typeof data === 'string') {
+        try {
+          const msg = JSON.parse(data);
+          if (msg.type === 'ack') {
+            ackedOffset = msg.bytes;
+            return;
+          }
+          if (msg.type === 'resume-request') {
+            console.log('Recipient connected & requested resume from byte:', msg.fromByte);
+            activateTransferProtection();
+            isPeerPresent = true;
+            isPausedForDisconnect = false;
+            senderOffset = msg.fromByte;
+            ackedOffset = msg.fromByte;
+            $('sStatusText').textContent = `Recipient reconnected! Resuming from ${formatBytes(senderOffset)}…`;
+            $('sProgressFill').classList.remove('paused');
+            $('sSpinner').classList.remove('amber');
+            triggerTransmission(dc && dc.readyState === 'open' ? 'p2p' : 'relay');
+            return;
+          }
+          if (msg.type === 'ready-to-receive') {
+            console.log('Recipient is ready to receive');
+            activateTransferProtection();
+            isPeerPresent = true;
+            isPausedForDisconnect = false;
+            $('sStatusText').textContent = 'Recipient connected & ready! Streaming…';
+            $('sProgressFill').classList.remove('paused');
+            $('sSpinner').classList.remove('amber');
+            triggerTransmission(dc && dc.readyState === 'open' ? 'p2p' : 'relay');
+            return;
+          }
+          if (msg.type === 'meta') {
+            fileMeta = msg;
+            activateTransferProtection();
+            $('rFileName').textContent = fileMeta.name;
+            $('rFileSize').textContent = formatBytes(fileMeta.size);
+            $('rFileIcon').textContent = getFileIcon(fileMeta.name, fileMeta.fileType);
+            $('rStatusText').textContent = 'Receiving stream…';
+            $('rRadar').style.display = 'none';
+            requestWakeLock();
+            return;
+          }
+        } catch (e) {}
+        return;
+      }
+
+      // Binary Chunk received
+      const chunk = data;
+      currentBatchChunks.push(chunk);
+      currentBatchBytes += chunk.byteLength;
+      receivedBytes += chunk.byteLength;
+
+      if (currentBatchBytes >= BLOB_SLICE_SIZE) {
+        blobBatches.push(new Blob(currentBatchChunks));
+        currentBatchChunks = [];
+        currentBatchBytes = 0;
+      }
+
+      ackThrottleCount++;
+      if (ackThrottleCount % 4 === 0 || (fileMeta && receivedBytes >= fileMeta.size)) {
+        const ackMsg = JSON.stringify({ type: 'ack', bytes: receivedBytes });
+        if (dc && dc.readyState === 'open') {
+          dc.send(ackMsg);
+        } else {
+          sendSignaling({ type: 'relay-control', data: ackMsg });
+        }
+      }
+
+      updateReceiverProgress();
+
+      if (fileMeta && receivedBytes >= fileMeta.size) {
+        completeReceivedFile();
+      }
+    }
+
+    function updateReceiverProgress() {
+      if (!rStartTime) rStartTime = performance.now();
+      const now = performance.now();
+      const pct = fileMeta.size > 0 ? Math.min(100, (receivedBytes / fileMeta.size) * 100) : 0;
+      
+      $('rProgressFill').style.width = pct + '%';
+      $('rPctLabel').textContent = pct.toFixed(1) + '%';
+      
+      const elapsedTotalSec = (now - rStartTime) / 1000;
+      const speed = elapsedTotalSec > 0 ? (receivedBytes / elapsedTotalSec) : 0;
+      const remainingBytes = fileMeta.size - receivedBytes;
+      const etaSec = speed > 0 ? remainingBytes / speed : 0;
+
+      $('rSpeedLabel').textContent = `${formatBytes(receivedBytes)} of ${formatBytes(fileMeta.size)} (${formatSpeed(speed)})`;
+      $('rEtaLabel').textContent = formatEta(etaSec);
+    }
+
+    function completeReceivedFile() {
+      transferCompleted = true;
+      transferInProgress = false;
+      window.onbeforeunload = null;
+      releaseWakeLock();
+      bgWorker.postMessage('stop');
+
+      if (currentBatchChunks.length > 0) {
+        blobBatches.push(new Blob(currentBatchChunks));
+        currentBatchChunks = [];
+      }
+
+      $('rProgressFill').style.width = '100%';
+      $('rPctLabel').textContent = '100%';
+      $('rStatusText').textContent = 'Transfer Complete!';
+      $('rSpinner').classList.add('hidden');
+      $('rSpeedLabel').textContent = `Successfully received ${formatBytes(receivedBytes)}`;
+      $('rEtaLabel').textContent = '';
+
+      sound.playSuccess();
+
+      const finalBlob = new Blob(blobBatches, { type: fileMeta.fileType || 'application/octet-stream' });
+      const objectUrl = URL.createObjectURL(finalBlob);
+
+      const btn = $('rDownloadBtn');
+      btn.classList.remove('hidden');
+      $('downloadBtnText').textContent = `Save ${fileMeta.name} (${formatBytes(fileMeta.size)})`;
+      
+      btn.onclick = () => {
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = fileMeta.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast('File saved to device!');
+      };
+
+      renderPreview(finalBlob, fileMeta);
+    }
+
+    function renderPreview(blob, meta) {
+      const box = $('rPreviewBox');
+      box.innerHTML = '';
+      const ext = (meta.name.split('.').pop() || '').toLowerCase();
+      const isImg = /^(png|jpe?g|gif|webp|svg|bmp|ico)$/.test(ext) || (meta.fileType && meta.fileType.startsWith('image/'));
+      const isAudio = /^(mp3|wav|ogg|m4a|flac)$/.test(ext) || (meta.fileType && meta.fileType.startsWith('audio/'));
+      const isVideo = /^(mp4|webm|mkv|mov)$/.test(ext) || (meta.fileType && meta.fileType.startsWith('video/'));
+
+      if (isImg && meta.size < 50 * 1024 * 1024) {
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(blob);
+        box.appendChild(img);
+        box.style.display = 'block';
+      } else if (isAudio) {
+        const audio = document.createElement('audio');
+        audio.controls = true;
+        audio.src = URL.createObjectURL(blob);
+        box.appendChild(audio);
+        box.style.display = 'block';
+      } else if (isVideo && meta.size < 200 * 1024 * 1024) {
+        const video = document.createElement('video');
+        video.controls = true;
+        video.src = URL.createObjectURL(blob);
+        box.appendChild(video);
+        box.style.display = 'block';
+      }
+    }
+
+    function activateRelayFallback() {
+      if (transferCompleted) return;
+      $('sModeTag').classList.remove('hidden');
+      $('sModeText').textContent = '🌐 Universal Cross-Network Relay';
+
+      $('rModeTag').classList.remove('hidden');
+      $('rModeText').textContent = '🌐 Universal Cross-Network Relay';
+
+      if (isSender && !isSendingStream && isPeerPresent && file) {
+        $('sStatusText').textContent = 'Streaming via Universal Cloud Relay…';
+        triggerTransmission('relay');
+      }
+    }
+
+    // --- High-Performance Background Transmitter ---
+    async function triggerTransmission(transportType) {
+      if (!isPeerPresent || isSendingStream || !file || transferCompleted) return;
+      isSendingStream = true;
+      isPausedForDisconnect = false;
+      activateTransferProtection();
+      requestWakeLock();
+      bgWorker.postMessage('start');
+
+      const useWebSocket = (transportType === 'relay') || !dc || dc.readyState !== 'open';
+
+      const metaMsg = JSON.stringify({
+        type: 'meta',
+        name: file.name,
+        size: file.size,
+        fileType: file.type
+      });
+
+      if (useWebSocket) {
+        sendSignaling({ type: 'relay-control', data: metaMsg });
+      } else if (dc && dc.readyState === 'open') {
+        dc.send(metaMsg);
+      }
+
+      if (!senderStartTime) senderStartTime = performance.now();
+
+      while (senderOffset < file.size) {
+        if (!isPeerPresent || isPausedForDisconnect || transferCompleted) {
+          isSendingStream = false;
+          bgWorker.postMessage('stop');
+          console.log('Transmission paused: Participant disconnected.');
+          return;
+        }
+
+        // Flow control paced via Web Worker micro-ticks
+        while ((senderOffset - ackedOffset) > WINDOW_SIZE || (dc && dc.readyState === 'open' && dc.bufferedAmount > 256 * 1024)) {
+          await waitPacingTick();
+
+          if (!isPeerPresent || isPausedForDisconnect || transferCompleted) {
+            isSendingStream = false;
+            bgWorker.postMessage('stop');
+            return;
+          }
+        }
+
+        const slice = file.slice(senderOffset, senderOffset + CHUNK_SIZE);
+        const arrayBuffer = await slice.arrayBuffer();
+
+        try {
+          if (useWebSocket) {
+            if (ws && ws.readyState === WebSocket.OPEN && isPeerPresent) {
+              ws.send(arrayBuffer);
+            } else {
+              isSendingStream = false;
+              bgWorker.postMessage('stop');
+              return;
+            }
+          } else {
+            if (dc && dc.readyState === 'open' && isPeerPresent) {
+              dc.send(arrayBuffer);
+            } else {
+              isSendingStream = false;
+              bgWorker.postMessage('stop');
+              activateRelayFallback();
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn('Transmission socket warning:', e);
+          isSendingStream = false;
+          bgWorker.postMessage('stop');
+          return;
+        }
+
+        senderOffset += arrayBuffer.byteLength;
+
+        const now = performance.now();
+        const pct = Math.min(100, (senderOffset / file.size) * 100);
+        $('sProgressFill').style.width = pct + '%';
+        $('sPctLabel').textContent = pct.toFixed(1) + '%';
+
+        const elapsedSec = (now - senderStartTime) / 1000;
+        const speed = elapsedSec > 0 ? (senderOffset / elapsedSec) : 0;
+        const remainingBytes = file.size - senderOffset;
+        const etaSec = speed > 0 ? remainingBytes / speed : 0;
+
+        $('sSpeedLabel').textContent = `${formatBytes(senderOffset)} of ${formatBytes(file.size)} (${formatSpeed(speed)})`;
+        $('sEtaLabel').textContent = formatEta(etaSec);
+      }
+
+      transferCompleted = true;
+      isSendingStream = false;
+      transferInProgress = false;
+      window.onbeforeunload = null;
+      releaseWakeLock();
+      bgWorker.postMessage('stop');
+
+      $('sProgressFill').style.width = '100%';
+      $('sPctLabel').textContent = '100%';
+      $('sStatusText').textContent = 'Transfer Complete! Recipient has received the file.';
+      $('sSpinner').classList.add('hidden');
+      $('sSpeedLabel').textContent = `Successfully sent ${formatBytes(file.size)}`;
+      $('sEtaLabel').textContent = '';
+
+      sound.playSuccess();
+      showToast('File transfer finished!');
+    }
+
+    // --- Signaling Server (WebSockets) ---
+    function sendSignaling(msg) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(msg));
+      }
+    }
+
+    function initSignaling(room, senderMode) {
+      roomId = room;
+      isSender = senderMode;
+
+      const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+      ws = new WebSocket(`${proto}${location.host}/ws`);
+      ws.binaryType = 'arraybuffer';
+
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        activateTransferProtection();
+        sendSignaling({ type: 'join', roomId });
+
+        if (!isSender) {
+          if (receivedBytes > 0 && !transferCompleted) {
+            $('rStatusText').textContent = 'Reconnected! Auto-resuming download…';
+            sendSignaling({
+              type: 'relay-control',
+              data: JSON.stringify({ type: 'resume-request', fromByte: receivedBytes })
+            });
+          } else {
+            $('rStatusText').textContent = 'Connected to sender. Ready!';
+            sendSignaling({
+              type: 'relay-control',
+              data: JSON.stringify({ type: 'ready-to-receive' })
+            });
+          }
+        }
+      };
+
+      ws.onmessage = async (event) => {
+        if (event.data instanceof ArrayBuffer) {
+          handleIncomingData(event.data);
+          return;
+        }
+
+        let msg;
+        try { msg = JSON.parse(event.data); } catch { return; }
+
+        if (msg.type === 'error') {
+          // If error is room in use, retry after short backoff
+          console.warn('Signaling message:', msg.message);
+          return;
+        }
+
+        if (msg.type === 'relay-control') {
+          handleIncomingData(msg.data);
+          return;
+        }
+
+        if (msg.type === 'peer-ready' && isSender) {
+          activateTransferProtection();
+          isPeerPresent = true;
+          isPausedForDisconnect = false;
+          $('sStatusText').textContent = 'Recipient connected! Establishing stream…';
+          $('sProgressFill').classList.remove('paused');
+          $('sSpinner').classList.remove('amber');
+
+          p2pNegotiationTimer = setTimeout(() => {
+            if (!isSendingStream && (!dc || dc.readyState !== 'open') && isPeerPresent) {
+              activateRelayFallback();
+            }
+          }, 3500);
+
+          await createWebRTCOffer();
+        }
+
+        if (msg.type === 'offer' && !isSender) {
+          activateTransferProtection();
+          isPeerPresent = true;
+          $('rStatusText').textContent = 'Sender connected. Negotiating stream…';
+          await ensurePeerConnection(false);
+          await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          sendSignaling({ type: 'answer', answer });
+        }
+
+        if (msg.type === 'answer' && isSender) {
+          await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
+        }
+
+        if (msg.type === 'ice' && msg.candidate) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)); } catch (e) {}
+        }
+
+        if (msg.type === 'peer-left') {
+          isPeerPresent = false;
+          isPausedForDisconnect = true;
+          isSendingStream = false;
+          bgWorker.postMessage('stop');
+
+          if (!transferCompleted) {
+            if (isSender) {
+              $('sStatusText').textContent = '⏸️ Recipient disconnected. Transfer paused — waiting for phone to reconnect…';
+              $('sSpeedLabel').textContent = 'Transfer paused';
+              $('sProgressFill').classList.add('paused');
+              $('sSpinner').classList.add('amber');
+            } else {
+              $('rStatusText').textContent = 'Sender disconnected. Reconnecting…';
+            }
+          }
+        }
+      };
+
+      ws.onclose = () => {
+        isPeerPresent = false;
+        isSendingStream = false;
+        bgWorker.postMessage('stop');
+        if (!transferCompleted) {
+          console.log('WebSocket dropped. Fast auto-reconnecting in 300ms...');
+          setTimeout(() => {
+            if (!transferCompleted) initSignaling(roomId, isSender);
+          }, 300);
+        }
+      };
+    }
+
+    async function createWebRTCOffer() {
+      await ensurePeerConnection(true);
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      sendSignaling({ type: 'offer', offer });
+    }
+
+    // --- Sender Flow Initiation ---
+    async function startSender(selectedFile) {
+      file = selectedFile;
+      activateTransferProtection();
+      hideError();
+
+      $('view-home').classList.add('hidden');
+      $('view-sender').classList.remove('hidden');
+
+      $('sFileName').textContent = file.name;
+      $('sFileSize').textContent = formatBytes(file.size);
+      $('sFileIcon').textContent = getFileIcon(file.name, file.type);
+      $('sStatusText').textContent = 'Creating secure transfer room…';
+
+      try {
+        const res = await fetch('/api/room');
+        const data = await res.json();
+        
+        const shareUrl = `${location.origin}/s/${data.id}`;
+        $('shareLinkInput').value = shareUrl;
+
+        QR.render(shareUrl, $('qrCanvas'), 160);
+
+        $('sStatusText').textContent = 'Waiting for recipient to open link or scan QR…';
+
+        await ensurePeerConnection(true);
+        initSignaling(data.id, true);
+      } catch (err) {
+        showError('Could not initialize transfer room: ' + err.message);
+      }
+    }
+
+    // --- Receiver Flow Initiation ---
+    function startReceiver(targetRoomId) {
+      hideError();
+      activateTransferProtection();
+      $('view-home').classList.add('hidden');
+      $('view-receiver').classList.remove('hidden');
+
+      $('rStatusText').textContent = 'Connecting to sender…';
+      initSignaling(targetRoomId, false);
+      ensurePeerConnection(false);
+    }
+
+    // --- Copy Link & QR Handlers ---
+    $('copyLinkBtn').onclick = async () => {
+      try {
+        await navigator.clipboard.writeText($('shareLinkInput').value);
+        $('copyBtnText').textContent = 'Copied!';
+        showToast('Transfer link copied to clipboard!');
+        setTimeout(() => { $('copyBtnText').textContent = 'Copy'; }, 2000);
+      } catch {
+        $('shareLinkInput').select();
+        document.execCommand('copy');
+        showToast('Link copied!');
+      }
+    };
+
+    $('qrToggleBtn').onclick = () => {
+      const modal = $('qrModal');
+      const isVisible = modal.style.display === 'flex';
+      modal.style.display = isVisible ? 'none' : 'flex';
+      $('qrToggleText').textContent = isVisible ? 'Show QR Code' : 'Hide QR Code';
+    };
+
+    $('sResetBtn').onclick = () => {
+      if (transferInProgress && !transferCompleted) {
+        showConfirmationDialog(() => {
+          transferInProgress = false;
+          window.onbeforeunload = null;
+          window.location.href = '/';
+        });
+        return;
+      }
+      transferInProgress = false;
+      window.location.href = '/';
+    };
+
+    const dropzone = $('dropzone');
+    const filePicker = $('filePicker');
+
+    filePicker.onchange = (e) => {
+      if (e.target.files && e.target.files[0]) startSender(e.target.files[0]);
+    };
+
+    dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('dragover'); };
+    dropzone.ondragleave = () => { dropzone.classList.remove('dragover'); };
+    dropzone.ondrop = (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) startSender(e.dataTransfer.files[0]);
+    };
+
+    window.addEventListener('paste', (e) => {
+      if ($('view-home').classList.contains('hidden')) return;
+      if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
+        startSender(e.clipboardData.files[0]);
+      }
+    });
+
+    const pathParts = window.location.pathname.split('/');
+    if (pathParts[1] === 's' && pathParts[2]) {
+      startReceiver(pathParts[2]);
+    }
+  </script>
+</body>
+</html>
