@@ -49,7 +49,7 @@ Open your terminal inside the project directory and run:
 
 ```bash
 # 1. Add the GitHub remote (replace with your username/repo)
-git remote add origin https://github.com/ADEK007/quick-file-send.git
+git remote add origin https://github.com/username/repo-name.git
 
 # 2. Ensure main branch
 git branch -M main
