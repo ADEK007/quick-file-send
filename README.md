@@ -3,12 +3,12 @@
 > **Ultra-Fast, Resumable Multi-Gigabyte Peer-to-Peer File Transfer Web Application**  
 > Powered by WebRTC DataChannels with Dual Signaling (WebSocket + Serverless HTTP Fallback).
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FADEK007%2Fquick-file-send)
 ![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-indigo.svg)
 ![WebRTC](https://img.shields.io/badge/WebRTC-P2P%20Direct-blue.svg)
-![Vercel Ready](https://img.shields.io/badge/Vercel-Serverless%20Ready-black.svg)
-![Cross-Network](https://img.shields.io/badge/Cross--Network-Mobile%20%7C%20Wi--Fi%20%7C%20Cellular-cyan.svg)
+![Render & Vercel Ready](https://img.shields.io/badge/Deploy-Render%20%7C%20Vercel-success.svg)
 
 ---
 

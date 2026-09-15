@@ -100,12 +100,266 @@ app.get('/api/room', (_req, res) => {
   res.json({ id, expiresIn: ROOM_TTL });
 });
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime(), activeRooms: rooms.size });
+export function formatUptime(seconds) {
+  const sec = Math.floor(seconds);
+  const mo = Math.floor(sec / (86400 * 30));
+  const d = Math.floor((sec % (86400 * 30)) / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+
+  if (mo > 0) return `${mo}mo, ${d} day`;
+  if (d > 0) return `${d} day, ${h} hr`;
+  if (h > 0) return `${h} hr, ${m} min`;
+  if (m > 0) return `${m} min, ${s} sec`;
+  return `${s} sec`;
+}
+
+app.get('/health', (req, res) => {
+  const uptimeSec = process.uptime();
+  const uptimeStr = formatUptime(uptimeSec);
+  const host = req.headers.host || 'quick-file-share.onrender.com';
+  const mem = process.memoryUsage();
+  const memMb = (mem.rss / 1024 / 1024).toFixed(1);
+
+  const acceptsHtml = req.accepts('html', 'json') === 'html';
+  const wantsJson = req.query.format === 'json' || req.headers['content-type'] === 'application/json' || !acceptsHtml;
+
+  if (wantsJson) {
+    return res.status(200).json({
+      status: 'ok',
+      service: 'Quick File Share',
+      host: `${host}/health`,
+      uptime: uptimeSec,
+      uptimeFormatted: `Up ${uptimeStr}`,
+      memory: `${memMb} MB`,
+      activeRooms: rooms.size,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  res.status(200).send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Service Health — ${host}</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #0c1017;
+      color: #e6edf3;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .status-card {
+      background: #151b23;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 16px 20px;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .status-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: #238636;
+    }
+    .indicator-icon {
+      width: 32px;
+      height: 32px;
+      background: #238636;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 0 14px rgba(35, 134, 54, 0.5);
+      animation: pulse 2.5s infinite ease-in-out;
+    }
+    .indicator-icon svg {
+      width: 18px;
+      height: 18px;
+      color: #ffffff;
+      stroke-width: 3;
+    }
+    .content-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .endpoint-url {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #f0f6fc;
+      letter-spacing: -0.2px;
+      word-break: break-all;
+    }
+    .meta-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .badge-http {
+      background: rgba(110, 118, 129, 0.2);
+      border: 1px solid rgba(110, 118, 129, 0.4);
+      color: #8b949e;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 5px;
+      letter-spacing: 0.5px;
+    }
+    .uptime-text {
+      font-size: 0.86rem;
+      color: #8b949e;
+      font-weight: 500;
+    }
+    .uptime-val {
+      color: #3fb950;
+      font-weight: 600;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-top: 14px;
+      width: 100%;
+      max-width: 520px;
+    }
+    .stat-pill {
+      background: #151b23;
+      border: 1px solid #21262d;
+      border-radius: 8px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .stat-pill-label {
+      font-size: 0.7rem;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+    .stat-pill-val {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #c9d1d9;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .footer-links {
+      margin-top: 20px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .footer-links a {
+      color: #58a6ff;
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+    .footer-links a:hover {
+      text-decoration: underline;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.08); opacity: 0.85; }
+    }
+  </style>
+</head>
+<body>
+  <div class="status-card">
+    <div class="indicator-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="18 15 12 9 6 15"></polyline>
+      </svg>
+    </div>
+    <div class="content-area">
+      <div class="endpoint-url">${host}/health</div>
+      <div class="meta-row">
+        <span class="badge-http">HTTP</span>
+        <span class="uptime-text">Up <span class="uptime-val" id="uptimeCounter">${uptimeStr}</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-pill">
+      <div class="stat-pill-label">Status</div>
+      <div class="stat-pill-val" style="color: #3fb950;">200 OK</div>
+    </div>
+    <div class="stat-pill">
+      <div class="stat-pill-label">Memory</div>
+      <div class="stat-pill-val">${memMb} MB</div>
+    </div>
+    <div class="stat-pill">
+      <div class="stat-pill-label">Active Rooms</div>
+      <div class="stat-pill-val">${rooms.size}</div>
+    </div>
+  </div>
+
+  <div class="footer-links">
+    <a href="/">← Return to Quick File Share</a>
+    <a href="/api/health?format=json">JSON API</a>
+  </div>
+
+  <script>
+    let currentSec = ${Math.floor(uptimeSec)};
+    function formatSecs(sec) {
+      const mo = Math.floor(sec / (86400 * 30));
+      const d = Math.floor((sec % (86400 * 30)) / 86400);
+      const h = Math.floor((sec % 86400) / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      if (mo > 0) return mo + 'mo, ' + d + ' day';
+      if (d > 0) return d + ' day, ' + h + ' hr';
+      if (h > 0) return h + ' hr, ' + m + ' min';
+      if (m > 0) return m + ' min, ' + s + ' sec';
+      return s + ' sec';
+    }
+    setInterval(() => {
+      currentSec++;
+      document.getElementById('uptimeCounter').textContent = formatSecs(currentSec);
+    }, 1000);
+  </script>
+</body>
+</html>`);
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime(), activeRooms: rooms.size });
+  const uptimeSec = process.uptime();
+  res.json({
+    status: 'ok',
+    service: 'Quick File Share',
+    uptime: uptimeSec,
+    uptimeFormatted: `Up ${formatUptime(uptimeSec)}`,
+    activeRooms: rooms.size,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // HTTP Signaling Endpoints (For Vercel Serverless & WebSocket Fallback)
