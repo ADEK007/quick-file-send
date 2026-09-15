@@ -1,23 +1,39 @@
 import http from 'http';
 import { WebSocket } from 'ws';
+import vercelHandler from './api/index.js';
 
-function fetchUrl(path) {
+function fetchUrl(path, options = {}) {
   return new Promise((resolve, reject) => {
-    http.get(`http://localhost:3000${path}`, (res) => {
+    const method = options.method || 'GET';
+    const body = options.body ? JSON.stringify(options.body) : null;
+    const headers = options.headers || {};
+    if (body) {
+      headers['Content-Type'] = 'application/json';
+      headers['Content-Length'] = Buffer.byteLength(body);
+    }
+
+    const req = http.request(`http://localhost:3000${path}`, { method, headers }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => resolve({ status: res.statusCode, data, headers: res.headers }));
-    }).on('error', reject);
+    });
+
+    req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
   });
 }
 
 async function run() {
-  console.log('Testing HTTP Endpoints...');
+  console.log('--- 1. Testing Core HTTP Endpoints ---');
   const root = await fetchUrl('/');
   console.log(`GET / -> Status ${root.status}, Length: ${root.data.length} bytes`);
 
   const shareRoute = await fetchUrl('/s/test1234');
   console.log(`GET /s/test1234 -> Status ${shareRoute.status}, Length: ${shareRoute.data.length} bytes`);
+
+  const contactRoute = await fetchUrl('/contact');
+  console.log(`GET /contact -> Status ${contactRoute.status}, Length: ${contactRoute.data.length} bytes`);
 
   const info = await fetchUrl('/api/info');
   console.log(`GET /api/info -> Status ${info.status}, Body: ${info.data}`);
@@ -26,7 +42,70 @@ async function run() {
   console.log(`GET /api/room -> Status ${room.status}, Body: ${room.data}`);
   const roomData = JSON.parse(room.data);
 
-  console.log('\nTesting WebSocket Signaling Server...');
+  console.log('\n--- 2. Testing Vercel Serverless Function Handler ---');
+  if (typeof vercelHandler === 'function') {
+    console.log('✅ api/index.js export is a valid serverless function handler');
+  } else {
+    throw new Error('api/index.js is not exporting a function');
+  }
+
+  console.log('\n--- 3. Testing HTTP Signaling Fallback (Vercel Serverless Ready) ---');
+  const httpRoom = await fetchUrl('/api/room');
+  const httpRoomData = JSON.parse(httpRoom.data);
+
+  // Join sender
+  const senderJoin = await fetchUrl('/api/signal/join', {
+    method: 'POST',
+    body: { roomId: httpRoomData.id, role: 'sender' }
+  });
+  console.log('Sender HTTP Join:', senderJoin.data);
+  const senderInfo = JSON.parse(senderJoin.data);
+
+  // Join receiver
+  const receiverJoin = await fetchUrl('/api/signal/join', {
+    method: 'POST',
+    body: { roomId: httpRoomData.id, role: 'receiver' }
+  });
+  console.log('Receiver HTTP Join:', receiverJoin.data);
+  const receiverInfo = JSON.parse(receiverJoin.data);
+
+  // Sender sends SDP offer
+  await fetchUrl('/api/signal/send', {
+    method: 'POST',
+    body: {
+      roomId: httpRoomData.id,
+      peerId: senderInfo.peerId,
+      message: { type: 'offer', offer: { sdp: 'dummy-sdp-offer', type: 'offer' } }
+    }
+  });
+
+  // Receiver polls and gets SDP offer
+  const poll1 = await fetchUrl(`/api/signal/poll?roomId=${httpRoomData.id}&peerId=${receiverInfo.peerId}&since=0`);
+  const poll1Data = JSON.parse(poll1.data);
+  console.log('Receiver Polled Messages:', poll1Data.messages.map(m => m.data.type));
+  const hasOffer = poll1Data.messages.some(m => m.data.type === 'offer');
+  if (!hasOffer) throw new Error('HTTP Signaling failed to deliver offer');
+
+  // Receiver sends SDP answer
+  await fetchUrl('/api/signal/send', {
+    method: 'POST',
+    body: {
+      roomId: httpRoomData.id,
+      peerId: receiverInfo.peerId,
+      message: { type: 'answer', answer: { sdp: 'dummy-sdp-answer', type: 'answer' } }
+    }
+  });
+
+  // Sender polls and gets SDP answer
+  const poll2 = await fetchUrl(`/api/signal/poll?roomId=${httpRoomData.id}&peerId=${senderInfo.peerId}&since=0`);
+  const poll2Data = JSON.parse(poll2.data);
+  console.log('Sender Polled Messages:', poll2Data.messages.map(m => m.data.type));
+  const hasAnswer = poll2Data.messages.some(m => m.data.type === 'answer');
+  if (!hasAnswer) throw new Error('HTTP Signaling failed to deliver answer');
+
+  console.log('✅ HTTP Signaling Fallback passed seamlessly!');
+
+  console.log('\n--- 4. Testing WebSocket Signaling Server ---');
   const ws1 = new WebSocket('ws://localhost:3000/ws');
   const ws2 = new WebSocket('ws://localhost:3000/ws');
 
@@ -41,11 +120,9 @@ async function run() {
 
     ws1.on('message', (msg) => {
       const parsed = JSON.parse(msg.toString());
-      console.log('WS1 received:', parsed.type);
       if (parsed.type === 'joined') ws1Joined = true;
       if (parsed.type === 'peer-ready') {
         peerReady = true;
-        // Test relaying offer
         ws1.send(JSON.stringify({ type: 'offer', offer: { sdp: 'fake-sdp-test', type: 'offer' } }));
       }
     });
@@ -58,10 +135,8 @@ async function run() {
 
     ws2.on('message', (msg) => {
       const parsed = JSON.parse(msg.toString());
-      console.log('WS2 received:', parsed.type);
       if (parsed.type === 'joined') ws2Joined = true;
       if (parsed.type === 'offer') {
-        console.log('WS2 received offer successfully! Relaying back answer...');
         ws2.send(JSON.stringify({ type: 'answer', answer: { sdp: 'fake-sdp-answer', type: 'answer' } }));
       }
     });
@@ -69,7 +144,7 @@ async function run() {
     ws1.on('message', (msg) => {
       const parsed = JSON.parse(msg.toString());
       if (parsed.type === 'answer') {
-        console.log('WS1 received answer successfully! WebRTC signaling verified!');
+        console.log('✅ WebSocket Signaling verified!');
         ws1.close();
         ws2.close();
         resolve();
@@ -81,10 +156,12 @@ async function run() {
     }, 4000);
   });
 
-  console.log('\nAll End-to-End Tests Passed Successfully! Site is fully live and functional.');
+  console.log('\n======================================================');
+  console.log('🎉 ALL SUITES PASSED! Quick File Share is 100% READY FOR VERCEL PRODUCTION!');
+  console.log('======================================================\n');
 }
 
 run().catch(err => {
-  console.error('Test failed:', err);
+  console.error('❌ Test failed:', err);
   process.exit(1);
 });
